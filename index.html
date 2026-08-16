@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Flipbook Interaktif</title>
+  
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background-color: #1e1e24;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #fff;
+      padding: 20px 0;
+    }
+
+    #loading {
+      font-size: 1.2rem;
+      margin-bottom: 20px;
+    }
+
+    .flipbook-container {
+      box-shadow: 0 12px 35px rgba(0,0,0,0.6);
+      visibility: hidden;
+    }
+
+    .page {
+      background-color: #ffffff;
+      overflow: hidden;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    .controls {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 10px 20px;
+      border-radius: 30px;
+      backdrop-filter: blur(5px);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+      max-width: 90vw;
+    }
+
+    .btn-action {
+      background-color: #00adb5;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+    }
+
+    .btn-action:hover {
+      background-color: #008c93;
+      transform: translateY(-1px);
+    }
+
+    .btn-action:disabled {
+      background-color: #4a4e69;
+      cursor: not-allowed;
+      opacity: 0.6;
+      transform: none;
+    }
+
+    .btn-secondary {
+      background-color: #393e46;
+    }
+    .btn-secondary:hover {
+      background-color: #222831;
+    }
+
+    .page-info {
+      font-size: 0.95rem;
+      font-weight: 500;
+      padding: 0 5px;
+      text-align: center;
+    }
+
+    .divider {
+      width: 1px;
+      height: 20px;
+      background: rgba(255, 255, 255, 0.2);
+      margin: 0 5px;
+    }
+
+    @media (max-width: 480px) {
+      .divider { display: none; }
+    }
+  </style>
+
+  <!-- Library Luar -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js"></script>
+</head>
+<body>
+
+  <div id="loading">Memuat PDF... Mohon tunggu.</div>
+  
+  <div id="book" class="flipbook-container"></div>
+
+  <div class="controls" id="controls" style="display: none;">
+    <button class="btn-action" id="btn-prev">← Prev</button>
+    <span class="page-info"><strong id="current-page">1</strong> / <strong id="total-pages">-</strong></span>
+    <button class="btn-action" id="btn-next">Next →</button>
+
+    <div class="divider"></div>
+
+    <button class="btn-action btn-secondary" id="btn-share">🔗 Share</button>
+    <a class="btn-action btn-secondary" id="btn-download" href="contoh.pdf" download="contoh.pdf">📄 Download PDF</a>
+    <button class="btn-action btn-secondary" id="btn-export">💾 Download Flipbook (.html)</button>
+  </div>
+
+  <script>
+    const pdfUrl = 'contoh.pdf';
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    let pageFlip = null;
+
+    async function loadFlipbook() {
+      const loadingEl = document.getElementById('loading');
+      const bookContainer = document.getElementById('book');
+      const controlsEl = document.getElementById('controls');
+      const btnPrev = document.getElementById('btn-prev');
+      const btnNext = document.getElementById('btn-next');
+      const btnShare = document.getElementById('btn-share');
+      const btnExport = document.getElementById('btn-export');
+      const currentPageEl = document.getElementById('current-page');
+      const totalPagesEl = document.getElementById('total-pages');
+
+      try {
+        const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
+        const totalPages = pdf.numPages;
+        totalPagesEl.textContent = totalPages;
+
+        const page1 = await pdf.getPage(1);
+        const viewport1 = page1.getViewport({ scale: 1 });
+        const width = Math.round(viewport1.width);
+        const height = Math.round(viewport1.height);
+
+        for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+          const page = await pdf.getPage(pageNum);
+          const viewport = page.getViewport({ scale: 1.5 });
+
+          const pageDiv = document.createElement('div');
+          pageDiv.className = 'page';
+
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+
+          await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+
+          pageDiv.appendChild(canvas);
+          bookContainer.appendChild(pageDiv);
+        }
+
+        loadingEl.style.display = 'none';
+        bookContainer.style.visibility = 'visible';
+        controlsEl.style.display = 'flex';
+
+        pageFlip = new St.PageFlip(bookContainer, {
+          width: width,
+          height: height,
+          size: "stretch",
+          minWidth: 300,
+          maxWidth: 1000,
+          minHeight: 400,
+          maxHeight: 1200,
+          maxShadowOpacity: 0.5,
+          showCover: true,
+          mobileScrollSupport: false
+        });
+
+        pageFlip.loadFromHTML(document.querySelectorAll('.page'));
+
+        pageFlip.on('flip', (e) => {
+          const current = e.data + 1;
+          currentPageEl.textContent = current;
+
+          btnPrev.disabled = (current === 1);
+          btnNext.disabled = (current === totalPages);
+        });
+
+        btnPrev.addEventListener('click', () => pageFlip.flipPrev());
+        btnNext.addEventListener('click', () => pageFlip.flipNext());
+
+        window.addEventListener('keydown', (e) => {
+          if (e.key === 'ArrowLeft') pageFlip.flipPrev();
+          if (e.key === 'ArrowRight') pageFlip.flipNext();
+        });
+
+        btnShare.addEventListener('click', async () => {
+          if (navigator.share) {
+            try {
+              await navigator.share({
+                title: 'Flipbook PDF Interaktif',
+                text: 'Cek flipbook PDF interaktif ini!',
+                url: window.location.href,
+              });
+            } catch (err) {}
+          } else {
+            navigator.clipboard.writeText(window.location.href);
+            alert('Link flipbook disalin ke clipboard!');
+          }
+        });
+
+        // GENERATOR OFFLINE BERSIH (TANPA REKURSIF/LOOP)
+        btnExport.addEventListener('click', async () => {
+          btnExport.innerText = '⌛ Mengolah...';
+          btnExport.disabled = true;
+
+          try {
+            const response = await fetch(pdfUrl);
+            const blob = await response.blob();
+
+            const base64Pdf = await new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result);
+              reader.readAsDataURL(blob);
+            });
+
+            // Template terpisah khusus untuk file Offline (dioptimalkan tanpa tombol export berulang)
+            const offlineTemplate = `<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Flipbook Offline</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background-color: #1e1e24; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: sans-serif; color: #fff; padding: 20px 0; }
+    #loading { font-size: 1.2rem; margin-bottom: 20px; }
+    .flipbook-container { box-shadow: 0 12px 35px rgba(0,0,0,0.6); visibility: hidden; }
+    .page { background-color: #ffffff; overflow: hidden; }
+    canvas { width: 100%; height: 100%; }
+    .controls { margin-top: 20px; display: flex; justify-content: center; align-items: center; gap: 10px; background: rgba(255, 255, 255, 0.1); padding: 10px 20px; border-radius: 30px; backdrop-filter: blur(5px); }
+    .btn-action { background-color: #00adb5; color: white; border: none; padding: 8px 16px; font-size: 0.9rem; font-weight: 600; border-radius: 20px; cursor: pointer; }
+    .btn-action:disabled { background-color: #4a4e69; opacity: 0.6; cursor: not-allowed; }
+    .page-info { font-size: 0.95rem; text-align: center; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
+  <script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.js"><\/script>
+</head>
+<body>
+  <div id="loading">Memuat Flipbook Offline...</div>
+  <div id="book" class="flipbook-container"></div>
+  <div class="controls" id="controls" style="display: none;">
+    <button class="btn-action" id="btn-prev">← Prev</button>
+    <span class="page-info"><strong id="current-page">1</strong> / <strong id="total-pages">-</strong></span>
+    <button class="btn-action" id="btn-next">Next →</button>
+  </div>
+  <script>
+    const pdfData = "${base64Pdf}";
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    async function initOffline() {
+      const loadingEl = document.getElementById('loading');
+      const bookContainer = document.getElementById('book');
+      const controlsEl = document.getElementById('controls');
+      const btnPrev = document.getElementById('btn-prev');
+      const btnNext = document.getElementById('btn-next');
+      const currentPageEl = document.getElementById('current-page');
+      const totalPagesEl = document.getElementById('total-pages');
+
+      try {
+        const pdf = await pdfjsLib.getDocument(pdfData).promise;
+        const totalPages = pdf.numPages;
+        totalPagesEl.textContent = totalPages;
+
+        const page1 = await pdf.getPage(1);
+        const viewport1 = page1.getViewport({ scale: 1 });
+
+        for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+          const page = await pdf.getPage(pageNum);
+          const viewport = page.getViewport({ scale: 1.5 });
+          const pageDiv = document.createElement('div');
+          pageDiv.className = 'page';
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+          pageDiv.appendChild(canvas);
+          bookContainer.appendChild(pageDiv);
+        }
+
+        loadingEl.style.display = 'none';
+        bookContainer.style.visibility = 'visible';
+        controlsEl.style.display = 'flex';
+
+        const pageFlip = new St.PageFlip(bookContainer, {
+          width: Math.round(viewport1.width),
+          height: Math.round(viewport1.height),
+          size: "stretch", minWidth: 300, maxWidth: 1000, minHeight: 400, maxHeight: 1200,
+          showCover: true, mobileScrollSupport: false
+        });
+
+        pageFlip.loadFromHTML(document.querySelectorAll('.page'));
+
+        pageFlip.on('flip', (e) => {
+          const current = e.data + 1;
+          currentPageEl.textContent = current;
+          btnPrev.disabled = (current === 1);
+          btnNext.disabled = (current === totalPages);
+        });
+
+        btnPrev.addEventListener('click', () => pageFlip.flipPrev());
+        btnNext.addEventListener('click', () => pageFlip.flipNext());
+        btnPrev.disabled = true;
+      } catch (err) {
+        loadingEl.innerText = "Gagal memuat dokumen offline.";
+      }
+    }
+    initOffline();
+  <\/script>
+</body>
+</html>`;
+
+            const htmlBlob = new Blob([offlineTemplate], { type: 'text/html' });
+            const downloadLink = document.createElement('a');
+            downloadLink.href = URL.createObjectURL(htmlBlob);
+            downloadLink.download = 'flipbook-offline.html';
+
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+
+            btnExport.innerText = '💾 Download Flipbook (.html)';
+            btnExport.disabled = false;
+          } catch (err) {
+            console.error(err);
+            alert('Gagal mengekspor file.');
+            btnExport.innerText = '💾 Download Flipbook (.html)';
+            btnExport.disabled = false;
+          }
+        });
+
+        btnPrev.disabled = true;
+
+      } catch (err) {
+        console.error("Gagal memuat PDF: ", err);
+        loadingEl.innerText = "Gagal memuat file PDF. Pastikan nama file 'contoh.pdf' sudah benar.";
+      }
+    }
+
+    loadFlipbook();
+  </script>
+</body>
+</html>
