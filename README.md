@@ -1,0 +1,2 @@
+# geminiflipbook
+software pembuat flipbook
